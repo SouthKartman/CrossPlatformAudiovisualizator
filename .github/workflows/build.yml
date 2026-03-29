@@ -42,19 +42,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # КРИТИЧНО: Gradle в Qt 6.4.2 требует Java 11. 
-      # Без этого шага сборка APK упадет с ошибкой (Error 2).
+      # Устанавливаем Java 11 (обязательно для Gradle в Qt 6.4)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
 
-      # Принимаем лицензии Android SDK, иначе сборка прервется
+      # Принимаем лицензии Android (исправленный путь)
       - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      # 1. Устанавливаем Desktop версию (для инструментов хоста: moc, qsb)
+      # 1. Устанавливаем Desktop версию (как Host инструменты)
       - name: Install Host Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -75,29 +75,29 @@ jobs:
           modules: 'qtmultimedia qtshadertools'
 
       - name: Build APK
+        shell: bash
         run: |
-          # 1. Рассчитываем пути
+          # 1. Рассчитываем пути на основе Qt6_DIR (который указывает на android)
           export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
           export TOOLCHAIN=$Qt6_DIR/lib/cmake/Qt6/qt.toolchain.cmake
           
           echo "Using HOST_QT_PATH: $HOST_QT_PATH"
           echo "Using TOOLCHAIN: $TOOLCHAIN"
 
-          # 2. Конфигурируем проект под Android
+          # 2. Конфигурируем проект
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
             -DQT_HOST_PATH=$HOST_QT_PATH \
             -DQT_ANDROID_BUILD_ALL_ABIS=ON \
-            -DANDROID_SDK_ROOT=$ANDROID_SDK_ROOT \
-            -DANDROID_NDK_ROOT=$ANDROID_NDK_ROOT
+            -DANDROID_SDK_ROOT=$ANDROID_HOME \
+            -DANDROID_NDK_ROOT=$ANDROID_HOME/ndk-bundle
             
-          # 3. Сборка пакета
+          # 3. Сборка APK
           cmake --build build --target apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          # Маска для поиска всех сгенерированных .apk файлов
           path: build/**/*.apk
