@@ -75,27 +75,23 @@ jobs:
           modules: 'qtmultimedia qtshadertools'
 
       - name: Build APK
-        shell: bash
         run: |
-          # 1. Находим последнюю установленную версию NDK
           export NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | tail -1)
           export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
           export TOOLCHAIN=$Qt6_DIR/lib/cmake/Qt6/qt.toolchain.cmake
-          
-          echo "Using NDK: $NDK_PATH"
-          echo "Using HOST_QT_PATH: $HOST_QT_PATH"
 
-          # 2. Конфигурируем проект через Ninja (стандарт для Android на GitHub)
           cmake -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
             -DQT_HOST_PATH=$HOST_QT_PATH \
             -DQT_ANDROID_BUILD_ALL_ABIS=ON \
+            -DQT_ANDROID_API_VERSION=34 \
             -DANDROID_SDK_ROOT=$ANDROID_HOME \
-            -DANDROID_NDK_ROOT=$NDK_PATH
+            -DANDROID_NDK_ROOT=$NDK_PATH \
+            -DQT_ANDROID_COMPILE_SDK_VERSION=34 \
+            -DQT_ANDROID_TARGET_SDK_VERSION=34
             
-          # 3. Сборка
           cmake --build build --target apk
 
       - name: Upload Android Artifact
