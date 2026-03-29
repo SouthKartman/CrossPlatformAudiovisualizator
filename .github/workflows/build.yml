@@ -13,13 +13,13 @@ jobs:
         with:
           version: '6.4.2'
           arch: 'win64_msvc2019_64'
-          # Обязательно указываем модули, иначе Multimedia не скачается
-          modules: 'qtmultimedia qtshaderapi'
+          # В 6.4.2 модуль называется qtshadertools
+          modules: 'qtmultimedia qtshadertools'
+          install-deps: 'true'
 
       - name: Build
         shell: pwsh
         run: |
-          # Явно указываем путь к Qt для CMake
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
@@ -28,8 +28,8 @@ jobs:
       - name: Package Windows
         shell: pwsh
         run: |
-          # Собираем все зависимости (.dll) в папку с приложением
-          & "$env:Qt6_DIR/bin/windeployqt.exe" --qmldir . build/Release/appkursach.exe
+          $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
+          & $deployTool --qmldir . build/Release/appkursach.exe
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Сначала ставим Desktop версию (она нужна как Host для инструментов сборки)
+      # 1. Устанавливаем Desktop версию (для инструментов хоста: moc, qsb)
       - name: Install Host Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -51,8 +51,9 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'gcc_64'
+          modules: 'qtshadertools'
 
-      # 2. Затем ставим Android версию
+      # 2. Устанавливаем Android версию (сами библиотеки)
       - name: Install Android Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -60,12 +61,11 @@ jobs:
           host: 'linux'
           target: 'android'
           arch: 'android_arm64_v8a'
-          modules: 'qtmultimedia qtshaderapi'
+          modules: 'qtmultimedia qtshadertools'
 
       - name: Build APK
         run: |
-          # Динамически находим путь к Desktop инструментам (gcc_64)
-          # Берем путь от Qt6_DIR (который сейчас указывает на android) и меняем папку
+          # Динамически находим путь к инструментам Desktop версии (gcc_64)
           export HOST_QT_PATH=$(dirname $(dirname $Qt6_DIR))/gcc_64
           echo "Using HOST_QT_PATH: $HOST_QT_PATH"
 
@@ -82,5 +82,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          # Ищем все сгенерированные APK в папке сборки
+          # Ищем APK рекурсивно в папке сборки
           path: build/**/*.apk
