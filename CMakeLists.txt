@@ -28,9 +28,13 @@ target_link_libraries(appkursach PRIVATE Qt6::Quick Qt6::Multimedia)
 
 
 if(ANDROID)
+    # Фиксируем версию SDK, чтобы Gradle не брал экспериментальный API 36
+    set(QT_ANDROID_API_VERSION 34)
+    set(QT_ANDROID_COMPILE_SDK_VERSION 34)
+    set(QT_ANDROID_TARGET_SDK_VERSION 34)
+    
+    # Путь к манифесту (убедитесь, что папка android создана)
     set_property(TARGET appkursach PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
-    # Автоматический поиск OpenSSL для Android (нужен для сетевых запросов, если добавишь)
-    find_package(Qt6 REQUIRED COMPONENTS Network) 
 endif()
 
 # Для Windows: иконка и тип приложения
