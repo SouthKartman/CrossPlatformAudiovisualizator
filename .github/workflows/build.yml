@@ -102,4 +102,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          path: build/**/*.apk
+          path: build/android-build/*.apk
