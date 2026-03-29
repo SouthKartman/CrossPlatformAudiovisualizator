@@ -77,13 +77,12 @@ jobs:
       # 5. Удаляем проблемный API 36 из SDK сервера GitHub
       - name: Force API 34
         run: |
-          cd $ANDROID_HOME/platforms
-          # Удаляем всё, что содержит буквы (ext) или версию выше 34
-          rm -rf android-36*
-          rm -rf android-35*
-          # Оставляем только 34 (если её нет, доставим)
-          sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
-          ls -l .
+          # Удаляем ВООБЩЕ ВСЕ платформы из SDK
+          rm -rf $ANDROID_HOME/platforms/*
+          # Ставим ТОЛЬКО API 34
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+          # Проверяем, что в папке осталась ТОЛЬКО одна папка android-34
+          ls $ANDROID_HOME/platforms
 
       - name: Build APK
         run: |
