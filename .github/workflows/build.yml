@@ -90,6 +90,9 @@ jobs:
           export NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | tail -1)
           export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
           export TOOLCHAIN=$Qt6_DIR/lib/cmake/Qt6/qt.toolchain.cmake
+
+          # Передаем ANDROID_PLATFORM напрямую в среду, чтобы androiddeployqt её увидел
+          export ANDROID_PLATFORM=android-34
           
           # Конфигурируем с жесткой фиксацией API 34 (обход бага ext19)
           cmake -B build \
