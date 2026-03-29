@@ -13,7 +13,7 @@ jobs:
         with:
           version: '6.4.2'
           arch: 'win64_msvc2019_64'
-          modules: 'qtmultimedia qtshadertools'
+          modules: 'qtmultimedia qtshadertools' # Исправленное название модуля
           install-deps: 'true'
 
       - name: Build
@@ -27,6 +27,7 @@ jobs:
       - name: Package Windows
         shell: pwsh
         run: |
+          # Собираем все DLL в одну папку
           $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
           & $deployTool --qmldir . build/Release/appkursach.exe
 
@@ -42,19 +43,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Устанавливаем Java 11 (обязательно для Gradle в Qt 6.4)
+      # 1. КРИТИЧНО: Java 11 для Gradle 7.4 (Qt 6.4.2)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
 
-      # Принимаем лицензии Android (исправленный путь)
+      # 2. Принимаем лицензии Android
       - name: Accept Android Licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      # 1. Устанавливаем Desktop версию (как Host инструменты)
+      # 3. Устанавливаем Host Qt (инструменты)
       - name: Install Host Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -64,7 +64,7 @@ jobs:
           arch: 'gcc_64'
           modules: 'qtshadertools'
 
-      # 2. Устанавливаем Android версию (библиотеки)
+      # 4. Устанавливаем Android Qt (библиотеки)
       - name: Install Android Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -73,13 +73,17 @@ jobs:
           target: 'android'
           arch: 'android_arm64_v8a'
           modules: 'qtmultimedia qtshadertools'
-      
+
+      # 5. Сборка APK
       - name: Build APK
+        shell: bash
         run: |
+          # Находим пути
           export NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | tail -1)
           export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
           export TOOLCHAIN=$Qt6_DIR/lib/cmake/Qt6/qt.toolchain.cmake
-
+          
+          # Конфигурируем с жесткой фиксацией API 34 (обход бага ext19)
           cmake -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -92,10 +96,11 @@ jobs:
             -DANDROID_SDK_ROOT=$ANDROID_HOME \
             -DANDROID_NDK_ROOT=$NDK_PATH
             
+          # Сама сборка
           cmake --build build --target apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          path: build/android-build/*.apk
+          path: build/**/*.apk
