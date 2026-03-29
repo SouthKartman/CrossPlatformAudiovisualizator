@@ -2,52 +2,104 @@ name: Cross-Platform Build
 on: [push]
 
 jobs:
-  # --- СБОРКА WINDOWS ---
+  # --- СБОРКА WINDOWS (.EXE) ---
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.4.2'
           arch: 'win64_msvc2019_64'
-      
+          modules: 'qtmultimedia qtshadertools'
+          install-deps: 'true'
+
       - name: Build
+        shell: pwsh
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
           cmake --build build --config Release
-          
+
       - name: Package Windows
+        shell: pwsh
         run: |
-          # Собираем все DLL в папку с EXE
-          windeployqt --qmldir . build/Release/appkursach.exe
-          
-      - name: Upload Windows
+          $deployTool = "$env:Qt6_DIR/bin/windeployqt.exe"
+          & $deployTool --qmldir . build/Release/appkursach.exe
+
+      - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Windows
           path: build/Release/
 
-  # --- СБОРКА ANDROID ---
+  # --- СБОРКА ANDROID (.APK) ---
   build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt
+
+      # Устанавливаем Java 11 (обязательно для Gradle в Qt 6.4)
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      # Принимаем лицензии Android (исправленный путь)
+      - name: Accept Android Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      # 1. Устанавливаем Desktop версию (как Host инструменты)
+      - name: Install Host Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.4.2'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtshadertools'
+
+      # 2. Устанавливаем Android версию (библиотеки)
+      - name: Install Android Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.4.2'
+          host: 'linux'
           target: 'android'
           arch: 'android_arm64_v8a'
-          
+          modules: 'qtmultimedia qtshadertools'
+
       - name: Build APK
+        shell: bash
         run: |
-          cmake -B build -DQT_ANDROID_BUILD_ALL_ABIS=ON -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --target apk
+          # 1. Находим последнюю установленную версию NDK
+          export NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* | tail -1)
+          export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
+          export TOOLCHAIN=$Qt6_DIR/lib/cmake/Qt6/qt.toolchain.cmake
           
-      - name: Upload Android
+          echo "Using NDK: $NDK_PATH"
+          echo "Using HOST_QT_PATH: $HOST_QT_PATH"
+
+          # 2. Конфигурируем проект через Ninja (стандарт для Android на GitHub)
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
+            -DQT_HOST_PATH=$HOST_QT_PATH \
+            -DQT_ANDROID_BUILD_ALL_ABIS=ON \
+            -DANDROID_SDK_ROOT=$ANDROID_HOME \
+            -DANDROID_NDK_ROOT=$NDK_PATH
+            
+          # 3. Сборка
+          cmake --build build --target apk
+
+      - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          path: build/android-build/*.apk
+          path: build/**/*.apk
