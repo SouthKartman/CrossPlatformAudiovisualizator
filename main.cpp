@@ -12,8 +12,10 @@ int main(int argc, char *argv[]) {
     
     // Этот код общий для всех платформ
     qmlRegisterType<AudioLevel>("CyberMedia", 1, 0, "AudioLevel");
-
+    
     QQmlApplicationEngine engine;
+
+    // for only qt 6.4
     const QUrl url(QStringLiteral("qrc:/kursach/Main.qml"));
     
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
