@@ -2,52 +2,85 @@ name: Cross-Platform Build
 on: [push]
 
 jobs:
-  # --- СБОРКА WINDOWS ---
+  # --- СБОРКА WINDOWS (.EXE) ---
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.4.2'
           arch: 'win64_msvc2019_64'
-      
+          # Обязательно указываем модули, иначе Multimedia не скачается
+          modules: 'qtmultimedia qtshaderapi'
+
       - name: Build
+        shell: pwsh
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          # Явно указываем путь к Qt для CMake
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
           cmake --build build --config Release
-          
+
       - name: Package Windows
+        shell: pwsh
         run: |
-          # Собираем все DLL в папку с EXE
-          windeployqt --qmldir . build/Release/appkursach.exe
-          
-      - name: Upload Windows
+          # Собираем все зависимости (.dll) в папку с приложением
+          & "$env:Qt6_DIR/bin/windeployqt.exe" --qmldir . build/Release/appkursach.exe
+
+      - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Windows
           path: build/Release/
 
-  # --- СБОРКА ANDROID ---
+  # --- СБОРКА ANDROID (.APK) ---
   build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt
+
+      # 1. Сначала ставим Desktop версию (она нужна как Host для инструментов сборки)
+      - name: Install Host Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.4.2'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+
+      # 2. Затем ставим Android версию
+      - name: Install Android Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.4.2'
+          host: 'linux'
           target: 'android'
           arch: 'android_arm64_v8a'
-          
+          modules: 'qtmultimedia qtshaderapi'
+
       - name: Build APK
         run: |
-          cmake -B build -DQT_ANDROID_BUILD_ALL_ABIS=ON -DCMAKE_BUILD_TYPE=Release
+          # Динамически находим путь к Desktop инструментам (gcc_64)
+          # Берем путь от Qt6_DIR (который сейчас указывает на android) и меняем папку
+          export HOST_QT_PATH=$(dirname $(dirname $Qt6_DIR))/gcc_64
+          echo "Using HOST_QT_PATH: $HOST_QT_PATH"
+
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQT_HOST_PATH=$HOST_QT_PATH \
+            -DQT_ANDROID_BUILD_ALL_ABIS=ON \
+            -DANDROID_SDK_ROOT=$ANDROID_SDK_ROOT \
+            -DANDROID_NDK_ROOT=$ANDROID_NDK_ROOT
+            
           cmake --build build --target apk
-          
-      - name: Upload Android
+
+      - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Visualizer-Android
-          path: build/android-build/*.apk
+          # Ищем все сгенерированные APK в папке сборки
+          path: build/**/*.apk
