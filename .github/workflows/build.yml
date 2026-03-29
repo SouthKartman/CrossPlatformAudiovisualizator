@@ -65,8 +65,8 @@ jobs:
 
       - name: Build APK
         run: |
-          # Динамически находим путь к инструментам Desktop версии (gcc_64)
-          export HOST_QT_PATH=$(dirname $(dirname $Qt6_DIR))/gcc_64
+          # Правильный расчет пути: поднимаемся на один уровень выше от android_arm64_v8a
+          export HOST_QT_PATH=$(dirname $Qt6_DIR)/gcc_64
           echo "Using HOST_QT_PATH: $HOST_QT_PATH"
 
           cmake -B build \
